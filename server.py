@@ -43,7 +43,8 @@ class Server:
             return Error.port_error()
 
     def check_port_open(self, port):
-        '''Determines whether a specified port is available'''
+        '''Determines whether a specified port is available. If it is, returns true, else
+        returns false.'''
 
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
