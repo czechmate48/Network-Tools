@@ -3,11 +3,13 @@
 import socket
 
 class Server:
+    
+    '''Creates a server on a specified ip address and port number'''
 
     def __init__(self):
         self.ip_address = self.get_default_ip()
         self.port = self.get_default_port()
-        print(self.ip_address, self.port)
+        self.start()        
         
     def get_default_ip(self):
         '''Attempts to obtain the default NIC ip address by opening a socket and connecting
@@ -21,7 +23,7 @@ class Server:
             s.close()
             return ip_address
         except:
-            return Error.ip_error()
+            return self.ip_error()
 
     def set_ip(self, ip_address):
         self.ip_address = ip_address
@@ -34,13 +36,13 @@ class Server:
         if self.check_port_open(default_port):
             return default_port
         else:
-            return Error.port_error()
+            return self.port_error()
 
     def set_port(self, port):
         if self.check_port_open(port):
             self.port = port
         else:
-            return Error.port_error()
+            return self.port_error()
 
     def check_port_open(self, port):
         '''Determines whether a specified port is available. If it is, returns true, else
@@ -54,32 +56,22 @@ class Server:
         except:
             return False
 
-
-class Error:
-
-    def __init__(self):
-        pass
-
-    @staticmethod
-    def ip_error():      
+    def start(self):
+        server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+        server_socket.bind((self.ip_address, self.port))
+        server_socket.listen(5)
+        print("Server is now listening on port", self.port, "...")
+        while True:
+            client_socket, address = server_socket.accept()
+            print("received connection from %r" % str(address))
+            message = 'conneced to server...' + "\r\n"
+            client_socket.send(message.encode('ascii'))
+            client_socket.close()
+            
+    def ip_error(self):      
         print("ERROR: Unable to assign ip address...")
         return input("Please specify an ipv4 address: ")
     
-    @staticmethod
-    def port_error(): 
+    def port_error(self): 
         print("ERROR: Unable to assign port...")
         return input("Please specify a port number: ")
-
-Server()
-#server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)  # IPV4, TCP protocol
-#host = socket.gethostname() # In windows, might not get the correct IP of the subnet  
-#port = 6543  # Arbitrary port
-#server_socket.bind(('192.168.123.15',port))
-#server_socket.listen(5)
-
-#while True:
-    #client_socket, address = server_socket.accept() # Accepts TCP information coming from client
-    #print("received connection from %r" % str(address))
-    #message = 'connected to server' + "\r\n"
-    #client_socket.send(message.encode('ascii')) 
-    #client_socket.close()
