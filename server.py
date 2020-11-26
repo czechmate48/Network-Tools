@@ -2,14 +2,30 @@
 
 import socket
 
+DEFAULT_IP_ADDRESS = '192.168.1.1'
+DEFAULT_PORT = 8080
+PORT_MAXIMUM = 65535
+
+LISTENING_MESSAGE = "[LISTENING] Server is now listening on {ip}:{port}..."
+IP_ERROR_MESSAGE = "[ERROR] Unable to assign ip address..." 
+PORT_ERROR_MESSAGE = "[ERROR] Unable to assign port number..."
+
 class Server:
     
-    '''Creates a server on a specified ip address and port number'''
+    '''Creates a server on a specified IP address and port number. If no IP address or port 
+    number are provided, the class defaults to the machines primary NIC IP and port 8080 if
+    it is available'''
 
-    def __init__(self):
-        self.ip_address = self.get_default_ip()
-        self.port = self.get_default_port()
-        self.start()        
+    def __init__(self, ip = DEFAULT_IP_ADDRESS, port = DEFAULT_PORT, display_terminal_output = False):
+        self.display_terminal_output = display_terminal_output
+        self.ip_address = self.assign_ip_address(ip)
+        self.port = self.assign_port_number(self.ip_address, port)
+
+    def assign_ip_address(self, ip):
+        if ip == DEFAULT_IP_ADDRESS:
+            return self.get_default_ip()
+        else:
+            return ip
         
     def get_default_ip(self):
         '''Attempts to obtain the default NIC ip address by opening a socket and connecting
@@ -25,32 +41,25 @@ class Server:
         except:
             return self.ip_error()
 
-    def set_ip(self, ip_address):
-        self.ip_address = ip_address
+    def assign_port_number(self, ip, port):
+        '''If no port number is specified, the port assigns the default port number to the 
+        port. If the default port is unavailable, the port number will increment by 1 until it
+        reaches the port maximum'''
 
-    def get_default_port(self):
-        '''Checks whether the default port is open. If yes, the default port is returned.
-        if no, returns a port_error to prompt for a port'''
-        
-        default_port = 8080
-        if self.check_port_open(default_port):
-            return default_port
-        else:
+        if port == DEFAULT_PORT:
+            while not self.check_port_open(ip, port) and port <= PORT_MAXIMUM:
+                port+=1
+            return port
+        elif not self.check_port_open(ip, port):
             return self.port_error()
 
-    def set_port(self, port):
-        if self.check_port_open(port):
-            self.port = port
-        else:
-            return self.port_error()
-
-    def check_port_open(self, port):
+    def check_port_open(self, ip, port):
         '''Determines whether a specified port is available. If it is, returns true, else
         returns false.'''
 
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
-            s.bind(('127.0.0.1', port))
+            s.bind((ip, port))
             s.close()
             return True
         except:
@@ -60,7 +69,9 @@ class Server:
         server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         server_socket.bind((self.ip_address, self.port))
         server_socket.listen(5)
-        print("Server is now listening on port", self.port, "...")
+        if self.display_terminal_output:
+            print(LISTENING_MESSAGE.format(ip=str(self.ip_address), port=str(self.port)))
+        return server_socket
         while True:
             client_socket, address = server_socket.accept()
             print("received connection from %r" % str(address))
@@ -69,9 +80,12 @@ class Server:
             client_socket.close()
             
     def ip_error(self):      
-        print("ERROR: Unable to assign ip address...")
-        return input("Please specify an ipv4 address: ")
+        if display_terminal_output:
+            print(IP_ERROR_MESSAGE)
     
     def port_error(self): 
-        print("ERROR: Unable to assign port...")
-        return input("Please specify a port number: ")
+        if display_terminal_output:
+            print(PORT_ERROR_MESSAGE)
+
+server = Server(display_terminal_output=True)
+server.start()
