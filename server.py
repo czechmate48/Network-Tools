@@ -13,20 +13,22 @@ LISTENING_ERROR_MESSAGE = "[ERROR] Unable to listen on socket {ip}:{port}"
 
 class Server:
     
-    '''Creates a server using a specified IP address and port number. If no IP address or port 
+    """Creates a server using a specified IP address and port number. If no IP address or port
     number are provided, the class defaults to the machines primary NIC IP and port 8080. If port
-    8080 is not availabile, the class increments the port number by 1 until it finds an available port.'''
+    8080 is not available, the class increments the port number by 1 until it finds an available port."""
 
     def __init__(self, ip = DEFAULT_IP_ADDRESS, port = DEFAULT_PORT, display_terminal_output = False, listening = True):
+        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listening = listening
         self.display_terminal_output = display_terminal_output
         self.ip_address = self.assign_ip_address(ip)
         self.port = self.assign_port_number(self.ip_address, port)
 
     def assign_ip_address(self, ip):
-        '''If this method receives the DEFAULT_IP_ADDRESS, the user has not specified an IP address.
+
+        """If this method receives the DEFAULT_IP_ADDRESS, the user has not specified an IP address.
         If no IP address is specified, the method will attempt to assign the IP address of the primary
-        NIC.'''
+        NIC."""
 
         if ip == DEFAULT_IP_ADDRESS:
             return self.get_default_ip()
@@ -34,8 +36,9 @@ class Server:
             return ip
         
     def get_default_ip(self):
-        '''Attempts to obtain the default NIC ip address by opening a socket and connecting
-        to google DNS. If successful, returns the IP address. If unsuccessful, returns an ip_error'''
+
+        """Attempts to obtain the default NIC ip address by opening a socket and connecting
+        to google DNS. If successful, returns the IP address. If unsuccessful, returns an ip_error"""
 
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_DGRAM)  # Creates an IPv4 UDP socket
@@ -47,9 +50,10 @@ class Server:
             return self.ip_error()
 
     def assign_port_number(self, ip, port):
-        '''If no port number is specified, the port stays as the DEFAULT_PORT. However, if the default port 
+
+        """If no port number is specified, the port stays as the DEFAULT_PORT. However, if the default port
         is unavailable, the port number will increment by 1 until a suitable port is found 
-        (stopping at PORT_MAXIMUM)'''
+        (stopping at PORT_MAXIMUM)"""
 
         if port == DEFAULT_PORT:
             while not self.check_port_available(ip, port) and port <= PORT_MAXIMUM:
@@ -59,8 +63,9 @@ class Server:
             return self.port_error()
 
     def check_port_available(self, ip, port):
-        '''Determines whether a specified port is available. If it is, returns true, else
-        returns false.'''
+
+        """Determines whether a specified port is available. If it is, returns true, else
+        returns false."""
 
         try:
             s = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
@@ -71,7 +76,6 @@ class Server:
             return False
 
     def start(self):
-        self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_socket.bind((self.ip_address, self.port))
         self.listening = True
         self.server_socket.listen(5)
@@ -80,7 +84,7 @@ class Server:
         while self.listening:
             client_socket, address = self.server_socket.accept()
             print("received connection from %r" % str(address))
-            message = 'conneced to server...' + "\r\n"
+            message = 'connected to server...' + "\r\n"
             client_socket.send(message.encode('ascii'))
             client_socket.close()
 
@@ -89,17 +93,17 @@ class Server:
         self.server_socket.close()
 
     def ip_error(self):      
-        if display_terminal_output:
+        if self.display_terminal_output:
             print(IP_ERROR_MESSAGE)
     
     def port_error(self): 
-        if display_terminal_output:
+        if self.display_terminal_output:
             print(PORT_ERROR_MESSAGE)
 
     def listening_error(self):
-        if display_terminal_output:
-            print(LISTENING_ERROR_MESSAGE.format(ip=str(self.ip_address),port=str(self.port))
+        if self.display_terminal_output:
+            print(LISTENING_ERROR_MESSAGE.format(ip=str(self.ip_address),port=str(self.port)))
 
 
-MyServer = Server(display_terminal_output=True, listening=True)
-MyServer.start()
+server = Server(display_terminal_output = True, listening = True)
+server.start()
