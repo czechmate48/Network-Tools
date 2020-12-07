@@ -3,11 +3,12 @@ import socket
 from netutility import NetUtility
 
 DEFAULT_IP_ADDRESS = '192.168.1.1'
-DEFAULT_PORT = 8080
+DEFAULT_PORT = 8083
 PORT_MAXIMUM = 65535
 
 LISTENING_MESSAGE = "[LISTENING] Server is now listening on {ip}:{port}..."
 LISTENING_ERROR_MESSAGE = "[ERROR] Unable to listen on socket {ip}:{port}"
+
 
 class Server:
 
@@ -19,10 +20,11 @@ class Server:
         self.server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listening = listening
         self.display_terminal_output = display_terminal_output
-        self.ip_address = self.assign_ip_address(ip)
-        self.port = self.assign_port_number(self.ip_address, port)
+        self.ip_address = Server.assign_ip_address(ip)
+        self.port = Server.assign_port_number(self.ip_address, port)
 
-    def assign_ip_address(self, ip):
+    @staticmethod
+    def assign_ip_address(ip):
 
         """If this method receives the DEFAULT_IP_ADDRESS, the user has not specified an IP address.
         If no IP address is specified, the method will attempt to assign the IP address of the primary
@@ -33,7 +35,8 @@ class Server:
         else:
             return ip
 
-    def assign_port_number(self, ip, port):
+    @staticmethod
+    def assign_port_number(ip, port):
 
         """If no port number is specified, the port stays as the DEFAULT_PORT. However, if the default port
         is unavailable, the port number will increment by 1 until a suitable port is found 
