@@ -1,7 +1,9 @@
 import socket
 
 PORT_ERROR_MESSAGE = "[ERROR] Unable to assign port {port} on {ip_address}"
+PORT_ERROR_REQUEST = "Please input a valid port: "
 IP_ERROR_MESSAGE = "[ERROR] Unable to assign ip address"
+
 
 class NetUtility:
 
@@ -21,7 +23,11 @@ class NetUtility:
 
     @staticmethod
     def display_port_error(ip, port):
-        print(PORT_ERROR_MESSAGE(ip_address=ip, port=port))
+        print(PORT_ERROR_MESSAGE.format(port=str(port), ip_address=str(ip)))
+
+    @staticmethod
+    def request_port():
+        input(PORT_ERROR_REQUEST)
 
     @staticmethod
     def get_primary_nic_ip():
