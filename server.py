@@ -1,10 +1,13 @@
 import socket
+import threading
 
 from netutility import NetUtility
 
 DEFAULT_IP_ADDRESS = '192.168.1.1'
 DEFAULT_PORT = 8083
 PORT_MAXIMUM = 65535
+DATA_HEADER_LENGTH = 64
+DATA_FORMAT = 'utf-8'
 
 LISTENING_MESSAGE = "[LISTENING] Server is now listening on {ip}:{port}..."
 LISTENING_ERROR_MESSAGE = "[ERROR] Unable to listen on socket {ip}:{port}"
@@ -50,25 +53,39 @@ class Server:
             return NetUtility.display_port_error(ip, port)
 
     def start(self):
+
+        """Starts the server by allowing clients to connect. If a client connects, a new thread is created
+        to handle message transfers between server and client"""
+
         self.server_socket.bind((self.ip_address, self.port))
         self.listening = True
         self.server_socket.listen(5)
         if self.display_terminal_output:
             print(LISTENING_MESSAGE.format(ip=str(self.ip_address), port=str(self.port)))
         while self.listening:
-            client_socket, address = self.server_socket.accept()
-            print("received connection from %r" % str(address))
-            message = 'connected to server...' + "\r\n"
-            client_socket.send(message.encode('ascii'))
-            client_socket.close()
+            client_connection, client_address = self.server_socket.accept()
+            print("received connection from %r" % str(client_address))
+            thread = threading.Thread(target=self.handle_client, args=(client_connection, client_address))
+            thread.start()
 
     def stop(self):
         self.listening = False
         self.server_socket.close()
 
-    def listening_error(self):
-        if self.display_terminal_output:
-            print(LISTENING_ERROR_MESSAGE.format(ip=str(self.ip_address), port=str(self.port)))
+    def handle_client(self, client_connection, client_address):
+        client_connected = True
+        connection_message = 'connected to server...' + "\r\n"
+        client_connection.send(connection_message.encode(DATA_FORMAT))
+        #while client_connected:
+            #  Identifies how long the message will be with a maximum size of DATA_HEADER_LENGTH
+            #data_length = client_connection.recv(DATA_HEADER_LENGTH).decode(DATA_FORMAT) 
+            #  Initial message upon connection is of length 0
+            #if data_length:
+                #data_length = int(data_length)
+                #  Receives the actual message
+                #data = client_connection.recv(data_length).decode(DATA_FORMAT)
+                #print(f"[{client_address}] {data}")  # FIXME -> Delete when done testing
+        #client_connection.close()
 
 
 server = Server(display_terminal_output=True, listening=True)
