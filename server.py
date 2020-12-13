@@ -76,16 +76,15 @@ class Server:
         client_connected = True
         connection_message = 'connected to server...' + "\r\n"
         client_connection.send(connection_message.encode(DATA_FORMAT))
-        #while client_connected:
+        while client_connected:
             #  Identifies how long the message will be with a maximum size of DATA_HEADER_LENGTH
-            #data_length = client_connection.recv(DATA_HEADER_LENGTH).decode(DATA_FORMAT) 
-            #  Initial message upon connection is of length 0
-            #if data_length:
-                #data_length = int(data_length)
-                #  Receives the actual message
-                #data = client_connection.recv(data_length).decode(DATA_FORMAT)
-                #print(f"[{client_address}] {data}")  # FIXME -> Delete when done testing
-        #client_connection.close()
+            data_length = client_connection.recv(DATA_HEADER_LENGTH).decode(DATA_FORMAT) 
+            #  Initial message upon connection is of length 0, only messages after initial should have header
+            if data_length:
+                data_length = int(data_length)
+                data = client_connection.recv(data_length).decode(DATA_FORMAT)
+                print(data)
+        client_connection.close()
 
 
 server = Server(display_terminal_output=True, listening=True)
