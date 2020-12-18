@@ -1,3 +1,6 @@
+#Set up server to inherit from Com and utilize the generate_payload method when sending messages
+#Do the same thing for the client
+
 import socket
 import threading
 
@@ -13,7 +16,7 @@ LISTENING_START_MESSAGE = "[LISTENING] Server is now listening on {ip}:{port}...
 LISTENING_STOP_MESSAGE = "[NOT LISTENING] Server stopped listening on {ip}:{port}"
 LISTENING_ERROR_MESSAGE = "[ERROR] Unable to listen on socket {ip}:{port}"
 
-class Server:
+class Server(Com):
 
     """Creates a server using a specified IP address and port number. If no IP address or port
     number are provided, the class defaults to the machines primary NIC IP and port 8080. If port
@@ -69,8 +72,8 @@ class Server:
         while self.listening:
             client_connection, client_address = self.socket.accept()
             print("received connection from %r" % str(client_address))
-            thread = threading.Thread(target=self.handle_client, args=(client_connection, client_address))
-            thread.start()
+            if client_connection and client_address not null:
+                self.handle_connection(client_connection, client_address)
 
     def print_to_terminal(self, message):
 
@@ -88,21 +91,29 @@ class Server:
         listening_stopped = LISTENING_STOPPED_MESSAGE.format(ip=str(ip_address), port=str(self.port))
         self.print_to_terminal(listening_stopped)
 
-    def handle_client(self, client_connection, client_address):
-        client_connected = True
+    def handle_connection(self, client_connection, client_address):
         connection_message = 'connected to server...' + "\r\n"
         client_connection.send(connection_message.encode(DATA_ENCODING))
-        while client_connected:
+        receive_thread = threading.Thread(target=self.receive_data, args=(client_connection, client_address))
+        receive_thread.start()
+        send_thread = threading.Thread(target=self.send_data, args=(client_connection, client_address))
+        send_thread.start()
+
+    def receive_data(client_connection, client_address):
+        while True:
             #  Identifies how long the message will be with a maximum size of DATA_HEADER_SIZE
-            data_length = client_connection.recv(DATA_HEADER_SIZE).decode(DATA_ENCODING) 
-            #  Initial message upon connection is of length 0, only messages after initial should have header
-            if data_length:
+            data_length = client_connection.recv(DATA_HEADER_SIZE).decode(DATA_ENCODING)
+            if data_length: #  Greater than 0
                 data_length = int(data_length)
                 data = client_connection.recv(data_length).decode(DATA_ENCODING)
                 print(data)
         client_connection.close()
 
+    def send_data(client_connection, client_address):
+        while True:
+            input_data = input()
+            client_connection.
 
 server = Server(display_terminal_output=True, listening=True)
 server.start()
-server.stop()
+#server.stop()
