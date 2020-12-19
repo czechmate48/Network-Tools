@@ -1,16 +1,12 @@
-#Set up server to inherit from Com and utilize the generate_payload method when sending messages
-#Do the same thing for the client
-
 import socket
 import threading
+from com import Com
 
 from netutility import NetUtility
 
 DEFAULT_IP_ADDRESS = '192.168.1.1'
 DEFAULT_PORT = 8083
 MAXIMUM_PORT = 65535
-DATA_HEADER_SIZE = 64  #Total length in Kb that server will accept at a time
-DATA_ENCODING = 'utf-8'
 
 LISTENING_START_MESSAGE = "[LISTENING] Server is now listening on {ip}:{port}..."
 LISTENING_STOP_MESSAGE = "[NOT LISTENING] Server stopped listening on {ip}:{port}"
@@ -22,7 +18,11 @@ class Server(Com):
     number are provided, the class defaults to the machines primary NIC IP and port 8080. If port
     8080 is not available, the class increments the port number by 1 until it finds an available port."""
 
-    def __init__(self, ip=DEFAULT_IP_ADDRESS, port=DEFAULT_PORT, display_terminal_output=False, listening=True):
+    CONNECTION_MESSAGE = 'connected to server...' + "\r\n"
+    
+    def __init__(self, data_payload_length=64, data_format='utf-8', ip=DEFAULT_IP_ADDRESS, 
+            port=DEFAULT_PORT, display_terminal_output=False, listening=True):
+        Com.__init__(self, data_payload_length, data_format)
         self.socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.listening = listening
         self.display_terminal_output = display_terminal_output
@@ -72,15 +72,8 @@ class Server(Com):
         while self.listening:
             client_connection, client_address = self.socket.accept()
             print("received connection from %r" % str(client_address))
-            if client_connection and client_address not null:
+            if client_connection and client_address:
                 self.handle_connection(client_connection, client_address)
-
-    def print_to_terminal(self, message):
-
-        """Prints messages to the terminal, but only if the server has been flagged to display output"""
-
-        if self.display_terminal_output:
-            print(message)
 
     def stop(self):
 
@@ -92,27 +85,31 @@ class Server(Com):
         self.print_to_terminal(listening_stopped)
 
     def handle_connection(self, client_connection, client_address):
-        connection_message = 'connected to server...' + "\r\n"
-        client_connection.send(connection_message.encode(DATA_ENCODING))
         receive_thread = threading.Thread(target=self.receive_data, args=(client_connection, client_address))
         receive_thread.start()
         send_thread = threading.Thread(target=self.send_data, args=(client_connection, client_address))
         send_thread.start()
 
-    def receive_data(client_connection, client_address):
+    def receive_data(self, client_connection, client_address):
         while True:
-            #  Identifies how long the message will be with a maximum size of DATA_HEADER_SIZE
-            data_length = client_connection.recv(DATA_HEADER_SIZE).decode(DATA_ENCODING)
-            if data_length: #  Greater than 0
-                data_length = int(data_length)
-                data = client_connection.recv(data_length).decode(DATA_ENCODING)
-                print(data)
+            data = client_connection.recv(self.data_payload_length).decode(self.data_format)
+            if len(data): print(data)
         client_connection.close()
 
-    def send_data(client_connection, client_address):
+    def send_data(self, client_connection, client_address):
+        payload = self.generate_payload(Server.CONNECTION_MESSAGE)
+        client_connection.send(payload)
         while True:
-            input_data = input()
-            client_connection.
+            data = input()
+            payload = self.generate_payload(Server.CONNECTION_MESSAGE)
+            client_connection.send(payload)
+
+    def print_to_terminal(self, message):
+
+        """Prints messages to the terminal, but only if the server has been flagged to display output"""
+
+        if self.display_terminal_output:
+            print(message)
 
 server = Server(display_terminal_output=True, listening=True)
 server.start()
