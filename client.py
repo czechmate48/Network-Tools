@@ -1,17 +1,19 @@
+#!/bin/python3.8
+
 import socket
+import threading
+from com import Com
 
 from netutility import NetUtility
 
-DATA_HEADER_LENGTH = 64
-DATA_FORMAT = 'utf-8'
-
 CONNECTION_MESSAGE = "[CONNECTED] Connected to server {ip}:{port}"
 
-class Client:
+class Client(Com):
 
     """Creates a client for the server"""
 
-    def __init__(self, server_ip, port, listening=True):
+    def __init__(self, server_ip, port, data_payload_length=64, data_format='utf-8', listening=True):
+        Com.__init__(self, data_payload_length, data_format)
         self.client_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
         self.server_ip_address = server_ip
         self.host_port = port
@@ -20,14 +22,22 @@ class Client:
     def start(self):
         self.client_socket.connect((self.server_ip_address, self.host_port))
         print(CONNECTION_MESSAGE.format(ip=str(self.server_ip_address),port=str(self.host_port))) 
-                
-    def send(self, data):
-        data = data.encode(DATA_FORMAT)
-        data_length = len(data)
-        send_length = str(data_length).encode(DATA_FORMAT)
-        send_length += b' ' * (DATA_HEADER_LENGTH - len(send_length))  # Pad message to make it header length
-        self.client_socket.send(send_length)
-        self.client_socket.send(data)
+        receive_thread = threading.Thread(target=self.receive_data)
+        receive_thread.start()
+        send_thread = threading.Thread(target=self.send_data)
+        send_thread.start()
+
+    def receive_data(self):
+        while True:
+            data = self.client_socket.recv(self.data_payload_length).decode(self.data_format)
+            if len(data):
+                print(data)
+
+    def send_data(self):
+        while True:
+            data = input()
+            payload = self.generate_payload(data)
+            self.send_payload(self.client_socket, payload)
 
 client = Client('192.168.123.15', 8083)
 client.start()
