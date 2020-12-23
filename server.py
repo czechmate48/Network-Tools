@@ -101,7 +101,7 @@ class Server(Com):
         self.send_payload(client_connection, payload)
         while True:
             data = input()
-            payload = self.generate_payload(Server.CONNECTION_MESSAGE)
+            payload = self.generate_payload(data)
             self.send_payload(client_connection, payload)
 
     def print_to_terminal(self, message):
