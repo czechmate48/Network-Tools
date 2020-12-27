@@ -1,11 +1,18 @@
 import socket
-
+from Crypto import Random
+from Crypto.PublicKey import RSA
 
 class Com:
 
     def __init__(self, data_payload_length=64, data_format='utf-8'):
         self.data_payload_length = data_payload_length
         self.data_format = data_format
+
+    def generate_key_pair(self):
+        modulus_length = 1024
+        private_key = RSA.generate(modulus_length, Random.new().read)
+        public_key = private_key.publickey()
+        return private_key, public_key
 
     def generate_payload(self, data: str) -> list:
 
