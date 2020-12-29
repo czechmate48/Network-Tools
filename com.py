@@ -1,6 +1,12 @@
 import socket
-from Crypto import Random
-from Crypto.PublicKey import RSA
+# from Crypto import Random
+# from Crypto.PublicKey import RSA
+
+class PCode:
+
+    PUBLIC_KEY = 100
+    DATA = 200
+    INFORMATION = 300
 
 class Com:
 
@@ -8,18 +14,23 @@ class Com:
         self.data_payload_length = data_payload_length
         self.data_format = data_format
 
-    def generate_key_pair(self):
-        modulus_length = 1024
+    def generate_keypair(self) -> dict:
+        modulus_length = 2048
         private_key = RSA.generate(modulus_length, Random.new().read)
         public_key = private_key.publickey()
-        return private_key, public_key
+        key_pair = {'private' : private_key, 'public' : public_key}
+        return key_pair
 
-    def generate_payload(self, data: str) -> list:
+    def send_public_key(self, connection, public_key): 
+        public_key_payload = generate_payload(PCode.PUBLIC_KEY, public_key)
+
+    def generate_payload(self, pcode, data: str) -> list:
 
         """Encodes the data, chops it into self.data_payload_length sized sections, adds these sections
         to a list, pads any data less than self.data_payload_length, returns the list"""
         
-        encoded_data = data.encode(self.data_format)
+        pcode_data = str(pcode) + str(data)  # Attach Pcode to beginning of a message
+        encoded_data = pcode_data.encode(self.data_format)
         encoded_data_size = len(encoded_data)
         encoded_payload = []
         iteration = 0
