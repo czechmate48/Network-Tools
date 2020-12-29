@@ -1,6 +1,7 @@
 import socket
 import threading
 from com import Com
+from com import PCode
 
 from netutility import NetUtility
 
@@ -93,15 +94,23 @@ class Server(Com):
     def receive_data(self, client_connection, client_address):
         while True:
             data = client_connection.recv(self.data_payload_length).decode(self.data_format)
-            if len(data): print(data)
+            if len(data): self.handle_received_data(data, client_address) 
         client_connection.close()
 
+    def handle_received_data(self, data, client_address):
+        pcode = int(data[0:3])
+        ip_tag = "[" + str(client_address) + "] " + str(pcode) + " : " 
+        if pcode == PCode.INFORMATION:
+            print(ip_tag + data[3:len(data)])
+        if pcode == PCode.DATA:
+            print(ip_tag + data[3:len(data)])
+
     def send_data(self, client_connection, client_address):
-        payload = self.generate_payload(Server.CONNECTION_MESSAGE)
+        payload = self.generate_payload(PCode.INFORMATION, Server.CONNECTION_MESSAGE)
         self.send_payload(client_connection, payload)
         while True:
             data = input()
-            payload = self.generate_payload(data)
+            payload = self.generate_payload(PCode.DATA, data)
             self.send_payload(client_connection, payload)
 
     def print_to_terminal(self, message):
