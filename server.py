@@ -29,6 +29,8 @@ class Server(Com):
         self.display_terminal_output = display_terminal_output
         self.ip_address = Server.assign_ip_address(ip)
         self.port = Server.assign_port_number(self.ip_address, port)
+        self.connection_profiles = []  # Holds all connections by clients to the server
+        self.key_pair = {}
 
     @staticmethod
     def assign_ip_address(ip):
@@ -61,6 +63,8 @@ class Server(Com):
         """Starts the server by allowing clients to connect. If a client connects, a new thread is created
         to handle message transfers between server and client"""
 
+        self.key_pair = self.generate_keypair()
+
         try:
             self.socket.bind((self.ip_address, self.port))
             self.listening = True
@@ -71,10 +75,12 @@ class Server(Com):
             listening_error = LISTENING_ERROR_MESSAGE.format(ip=str(self.ip_address), port=str(self.port))
             self.print_to_terminal(listening_error)
         while self.listening:
-            client_connection, client_address = self.socket.accept()
+            com_channel, client_address = self.socket.accept()
             print("received connection from %r" % str(client_address))
-            if client_connection and client_address:
-                self.handle_connection(client_connection, client_address)
+            if com_channel and client_address:
+                connection_profile = Connection_Profile(com_channel, client_address)  # Public key set later
+                self.connection_profiles.append(connection_profile)
+                self.handle_connection(connection_profile)
 
     def stop(self):
 
@@ -85,33 +91,42 @@ class Server(Com):
         listening_stopped = LISTENING_STOPPED_MESSAGE.format(ip=str(ip_address), port=str(self.port))
         self.print_to_terminal(listening_stopped)
 
-    def handle_connection(self, client_connection, client_address):
-        receive_thread = threading.Thread(target=self.receive_data, args=(client_connection, client_address))
+    def handle_connection(self, connection_profile):
+        receive_thread = threading.Thread(target=self.receive_data, args=connection_profile)
         receive_thread.start()
-        send_thread = threading.Thread(target=self.send_data, args=(client_connection, client_address))
+        send_thread = threading.Thread(target=self.send_data, args=connection_profile)
         send_thread.start()
 
-    def receive_data(self, client_connection, client_address):
+    def receive_data(self, connection_profile):
+        com_channel = connection_profile.com_channel
+        client_address = connection_profile.client_address
         while True:
-            data = client_connection.recv(self.data_payload_length).decode(self.data_format)
-            if len(data): self.handle_received_data(data, client_address) 
-        client_connection.close()
+            data = com_channel.recv(self.data_payload_length).decode(self.data_format)
+            if len(data): self.handle_received_data(data, connection_profile) 
+        com_channel.close()
 
-    def handle_received_data(self, data, client_address):
+    def handle_received_data(self, data, connection_profile):
+        client_address = connection_profile.client_address
         pcode = int(data[0:3])
+        payload = data[3:len(data)]
         ip_tag = "[" + str(client_address) + "] " + str(pcode) + " : " 
+        if pcode == PCode.PUBLIC_KEY:
+            connection_profile.public_key = payload
         if pcode == PCode.INFORMATION:
-            print(ip_tag + data[3:len(data)])
-        if pcode == PCode.DATA:
-            print(ip_tag + data[3:len(data)])
+            print(ip_tag + payload)
+        elif pcode == PCode.DATA:
+            print(ip_tag + payload)
 
-    def send_data(self, client_connection, client_address):
+    def send_data(self, connection_profile):
+        com_channel = connection_profile.com_channel
+        client_address = connection_profile.client_address
+        public_key = connection_profile.public_key
         payload = self.generate_payload(PCode.INFORMATION, Server.CONNECTION_MESSAGE)
-        self.send_payload(client_connection, payload)
+        self.send_payload(com_channel, payload)
         while True:
             data = input()
-            payload = self.generate_payload(PCode.DATA, data)
-            self.send_payload(client_connection, payload)
+            payload = self.generate_payload(PCode.DATA, data, public_key)
+            self.send_payload(com_channel, payload)
 
     def print_to_terminal(self, message):
 
@@ -119,6 +134,14 @@ class Server(Com):
 
         if self.display_terminal_output:
             print(message)
+
+
+class Connection_Profile():
+
+    def __init__(self, com_channel, client_address, public_key=-1):
+        self.com_channel = com_channel
+        self.client_address = client_address
+        self.public_key = public_key
 
 server = Server(display_terminal_output=True, listening=True)
 server.start()
