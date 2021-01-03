@@ -92,12 +92,12 @@ class Server(Com):
         self.print_to_terminal(listening_stopped)
 
     def handle_connection(self, connection_profile):
-        receive_thread = threading.Thread(target=self.receive_data, args=connection_profile)
+        receive_thread = threading.Thread(target=self.receive_data, args=(connection_profile,))
         receive_thread.start()
-        send_thread = threading.Thread(target=self.send_data, args=connection_profile)
+        send_thread = threading.Thread(target=self.send_data, args=(connection_profile,))
         send_thread.start()
 
-    def receive_data(self, connection_profile):
+    def receive_data(self, connection_profile: tuple):
         com_channel = connection_profile.com_channel
         client_address = connection_profile.client_address
         while True:
@@ -117,15 +117,16 @@ class Server(Com):
         elif pcode == PCode.DATA:
             print(ip_tag + payload)
 
-    def send_data(self, connection_profile):
+    def send_data(self, connection_profile: tuple):
         com_channel = connection_profile.com_channel
         client_address = connection_profile.client_address
-        public_key = connection_profile.public_key
+        client_public_key = connection_profile.public_key
+        self.send_public_key(com_channel, self.key_pair['public'])  # Send server public key to client
         payload = self.generate_payload(PCode.INFORMATION, Server.CONNECTION_MESSAGE)
         self.send_payload(com_channel, payload)
         while True:
             data = input()
-            payload = self.generate_payload(PCode.DATA, data, public_key)
+            payload = self.generate_payload(PCode.DATA, data, client_public_key)
             self.send_payload(com_channel, payload)
 
     def print_to_terminal(self, message):
@@ -142,6 +143,13 @@ class Connection_Profile():
         self.com_channel = com_channel
         self.client_address = client_address
         self.public_key = public_key
+
+    def as_tuple(self):  # Recieves a Connection_Profile object
+        return (self.com_channel, self.client_address, self.public_key)
+
+    @staticmethod
+    def as_object(data: tuple):
+        return Connection_Profile(data[0],data[1],data[2])
 
 server = Server(display_terminal_output=True, listening=True)
 server.start()
