@@ -118,6 +118,9 @@ class Server(Com):
             print(ip_tag + payload)
 
     def send_data(self, connection_profile: tuple):
+
+        """Send public key and connection message on connection"""
+
         com_channel = connection_profile.com_channel
         client_address = connection_profile.client_address
         client_public_key = connection_profile.public_key
