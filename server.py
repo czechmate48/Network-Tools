@@ -100,22 +100,21 @@ class Server(Com):
     def receive_data(self, connection_profile: tuple):
         com_channel = connection_profile.com_channel
         client_address = connection_profile.client_address
+        message = ''
         while True:
-            data = com_channel.recv(self.data_payload_length).decode(self.data_format)
-            if len(data): self.handle_received_data(data, connection_profile) 
+            raw_data = com_channel.recv(self.data_payload_length).decode(self.data_format)
+            parsed_data = self.parse_payload(raw_data, self.key_pair['private'])  # Returns a tuple - (parsed data, start_pcode, end_pcode)
+            message += parsed_data[0]
+            if parsed_data[2] == PCode.END_TRANSMISSION:
+                self.handle_message(message, parsed_data[1], connection_profile)
+                message = ''
         com_channel.close()
 
-    def handle_received_data(self, data, connection_profile):
-        client_address = connection_profile.client_address
-        pcode = int(data[0:3])
-        payload = data[3:len(data)]
-        ip_tag = "[" + str(client_address) + "] " + str(pcode) + " : " 
-        if pcode == PCode.PUBLIC_KEY:
-            connection_profile.public_key = payload
-        if pcode == PCode.INFORMATION:
-            print(ip_tag + payload)
-        elif pcode == PCode.DATA:
-            print(ip_tag + payload)
+    def handle_message(self, message, start_pcode, connection_profile: tuple):
+        ip_tag = "[" + str(connection_profile.client_address) + "] " 
+        #if start_pcode == PCode.PUBLIC_KEY:
+            # FIXME -> Update the connection_profile somehow
+        print(ip_tag + message)
 
     def send_data(self, connection_profile: tuple):
 
