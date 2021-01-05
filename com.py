@@ -5,9 +5,12 @@ from Crypto.Cipher import PKCS1_OAEP
 
 class PCode:
 
+    #HEADERS
     PUBLIC_KEY = 100
     DATA = 200
     INFORMATION = 300
+    
+    #TRAILERS
     CONTINUE_TRANSMISSION = 400
     END_TRANSMISSION = 500
 
@@ -20,6 +23,7 @@ class Com:
     def generate_keypair(self) -> dict:
 
         """Generates an RSA key pair"""
+        # FIXME -> RSA Key is not being random
         
         modulus_length = 2048
         private_key = RSA.generate(modulus_length, Random.new().read)
@@ -107,4 +111,17 @@ class Com:
     def send_payload(self, connection, payload):
         for section in payload:
             connection.send(section)
+
+    def parse_payload(self, raw_data, private_key) -> tuple:
+        if len(raw_data):
+            end_pcode = int(raw_data[-3:])
+            start_pcode = int(raw_data[0:3])
+            if end_pcode == PCode.END_TRANSMISSION:
+                unpadded_data = self.unpad_data(raw_data, private_key)
+                return (unpadded_data, start_pcode, end_pcode)
+            elif end_pcode == PCode.CONTINUE_TRANSMISSION:
+                section_data = raw_data[3:-3]
+                return (section_data, start_pcode, end_pcode)
+            else:
+                print("Message is corrupt - Can't read trailer")
 
