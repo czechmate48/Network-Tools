@@ -57,7 +57,7 @@ class Client(Com):
         self.send_public_key(self.com_channel, self.key_pair['public'])
         while True:
             data = input()
-            payload = self.generate_payload(PCode.DATA, data)
+            payload = self.generate_payload(PCode.DATA, data, self.server_public_key)
             self.send_payload(self.com_channel, payload)
 
 
