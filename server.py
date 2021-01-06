@@ -1,3 +1,7 @@
+# I believe the Public key needs to be converted into another format which is why you are getting the error when trying to 
+# exchange data between the server and client. Take a look at the type of format the public key is in once it is received
+# I think you need to convert a str into a number
+
 import socket
 import threading
 from com import Com
@@ -29,7 +33,7 @@ class Server(Com):
         self.display_terminal_output = display_terminal_output
         self.ip_address = Server.assign_ip_address(ip)
         self.port = Server.assign_port_number(self.ip_address, port)
-        self.connection_profiles = []  # Holds all connections by clients to the server
+        self.connection_profiles = {}  # Holds all connections by clients to the server
         self.key_pair = {}
 
     @staticmethod
@@ -79,7 +83,7 @@ class Server(Com):
             print("received connection from %r" % str(client_address))
             if com_channel and client_address:
                 connection_profile = Connection_Profile(com_channel, client_address)  # Public key set later
-                self.connection_profiles.append(connection_profile)
+                self.connection_profiles[connection_profile.id] = connection_profile
                 self.handle_connection(connection_profile)
 
     def stop(self):
@@ -112,21 +116,21 @@ class Server(Com):
 
     def handle_message(self, message, start_pcode, connection_profile: tuple):
         ip_tag = "[" + str(connection_profile.client_address) + "] " 
-        #if start_pcode == PCode.PUBLIC_KEY:
-            # FIXME -> Update the connection_profile somehow
+        if start_pcode == PCode.PUBLIC_KEY:
+            self.connection_profiles[connection_profile.id].public_key = message
         print(ip_tag + message)
 
     def send_data(self, connection_profile: tuple):
 
         """Send public key and connection message on connection"""
-
+        
         com_channel = connection_profile.com_channel
         client_address = connection_profile.client_address
-        client_public_key = connection_profile.public_key
         self.send_public_key(com_channel, self.key_pair['public'])  # Send server public key to client
         payload = self.generate_payload(PCode.INFORMATION, Server.CONNECTION_MESSAGE)
         self.send_payload(com_channel, payload)
         while True:
+            client_public_key = connection_profiles[connection_profile.id].public_key
             data = input()
             payload = self.generate_payload(PCode.DATA, data, client_public_key)
             self.send_payload(com_channel, payload)
@@ -145,6 +149,7 @@ class Connection_Profile():
         self.com_channel = com_channel
         self.client_address = client_address
         self.public_key = public_key
+        self.id = id(self)
 
     def as_tuple(self):  # Recieves a Connection_Profile object
         return (self.com_channel, self.client_address, self.public_key)
