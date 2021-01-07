@@ -106,8 +106,10 @@ class Server(Com):
         client_address = connection_profile.client_address
         message = ''
         while True:
-            raw_data = com_channel.recv(self.data_payload_length).decode(self.data_format)
-            parsed_data = self.parse_payload(raw_data, self.key_pair['private'])  # Returns a tuple - (parsed data, start_pcode, end_pcode)
+            raw_data = com_channel.recv(self.data_payload_length)
+            decoded_data = raw_data.decode(self.data_format)
+            decrypted_data = self.decrypt_data(decoded_data, self.key_pair['private'])
+            parsed_data = self.parse_payload(decrypted_data)  # Returns a tuple - (parsed data, start_pcode, end_pcode)
             message += parsed_data[0]
             if parsed_data[2] == PCode.END_TRANSMISSION:
                 self.handle_message(message, parsed_data[1], connection_profile)
@@ -130,7 +132,7 @@ class Server(Com):
         payload = self.generate_payload(PCode.INFORMATION, Server.CONNECTION_MESSAGE)
         self.send_payload(com_channel, payload)
         while True:
-            client_public_key = connection_profiles[connection_profile.id].public_key
+            client_public_key = self.connection_profiles[connection_profile.id].public_key
             data = input()
             payload = self.generate_payload(PCode.DATA, data, client_public_key)
             self.send_payload(com_channel, payload)
