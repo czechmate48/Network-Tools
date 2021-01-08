@@ -26,8 +26,9 @@ class Com:
         """Generates an RSA key pair. The Public key is returned as a string object whereas the Private
         key is returned as an RSAKey object"""
         
-        private_key = RSA.generate(2048)  # Modulus length of 2048 is considered standard
-        public_key = private_key.publickey().export_key(format='DER')  # Originally decoding when using PEM
+        key = RSA.generate(2048)
+        private_key = key.exportKey()  # Modulus length of 2048 is considered standard
+        public_key = key.publickey().exportKey()
         #public_key = public_key[26:-25]  # Remove "Begin RSA Key and End RSA Key"
         #public_key = public_key.replace("\n", '')  # Remove unnecessary spaces
         #private_key = private_key.export_key()
@@ -98,24 +99,31 @@ class Com:
         unpadded_data = data[3:pad_start]
         return unpadded_data 
 
-    def encrypt_data(self, data, public_key = '-1'):
+    def encrypt_data(self, data, public_key = -1):
         encrypted_data = ''
-        if public_key == -1:  # Public keys are passed in as str and converted into an RSAKey Object
+        if type(public_key) == str:  
             encrypted_data = data
         else:
-            #key = RSA.generate(2048)
-            public_key = importKey(public_key)
-            cipher = PKCS1_OAEP.new(public_key)
-            encrypted_data = cipher.encrypt(data)
+            public_key = RSA.import_key(public_key)
+            session_key = get_random_bytes(16)
+            cipher_rsa = PKCS1_OAEP.new(public_key)
+            enc_session_key = cipher_rsa.encrypt(session_key)
+            cipher_aes = AES.new(session_key, AES.MODE_EAX)
+            encrypted_data, tag = cipher_aes.encrypt_and_digest(data)
         return encrypted_data
 
     def decrypt_data(self, encrypted_data, private_key = -1):
         decrypted_data = ''
-        if type(private_key) == int:  # An instantiated Private key is already an RSAKey object and never converted to str
+        if type(private_key) == str: 
             decrypted_data = encrypted_data
         else:
-            cipher = PKCS1_OAEP.new(private_key)
+            private_key = RSA.import_key(private_key)
+            enc_session_key = private_key.size_in_bytes()
+            cipher_rsa = PKCS1_OAEP.new(private_key)
+            session_key = cipher_rsa.decrypt(enc_session_key)
+            cipher_aes = AES.new(session_key, AES.MODE_EAX)
             decrypted_data = cipher.decrypt(encrypted_data)
+            # https://pycryptodome.readthedocs.io/en/latest/src/examples.html
         return decrypted_data
 
     def send_payload(self, connection, payload):
