@@ -8,12 +8,23 @@ class PCode:
 
     #HEADERS
     PUBLIC_KEY = 100
-    DATA = 200
-    INFORMATION = 300
+    SESSION_KEY = 200
+    DATA = 300
+    INFORMATION = 400
+    CONFIRMATION = 500
+    NEXT_TRANSMISSION = 600
     
     #TRAILERS
-    CONTINUE_TRANSMISSION = 400
-    END_TRANSMISSION = 500
+    CONTINUE_TRANSMISSION = 700
+    END_TRANSMISSION = 800
+
+    #MESSAGES
+    PUBLIC_KEY_RECEIVED = "public key received"
+    PERMISSION_TO_TRANSMIT = "permission to transmit"
+    PERMISSION_TO_TRANSMIT_GRANTED = "permission to transmit granted"
+    PERMISSION_TO_TRANSMIT_DENIED = "permission to transmit denied"
+    READY_FOR_NEXT_TRANSMISSION = "next transmission"
+    WAIT = "wait"
 
 class Com:
 
@@ -26,8 +37,9 @@ class Com:
         """Generates an RSA key pair. The Public key is returned as a string object whereas the Private
         key is returned as an RSAKey object"""
         
-        private_key = RSA.generate(2048)  # Modulus length of 2048 is considered standard
-        public_key = private_key.publickey().export_key(format='DER')  # Originally decoding when using PEM
+        key = RSA.generate(2048)
+        private_key = key.exportKey()  # Modulus length of 2048 is considered standard
+        public_key = key.publickey().exportKey()
         #public_key = public_key[26:-25]  # Remove "Begin RSA Key and End RSA Key"
         #public_key = public_key.replace("\n", '')  # Remove unnecessary spaces
         #private_key = private_key.export_key()
@@ -37,8 +49,18 @@ class Com:
         return key_pair
 
     def send_public_key(self, connection, public_key): 
+        if type(public_key) == bytes:
+            public_key = public_key.decode(self.data_format)
         public_key_payload = self.generate_payload(PCode.PUBLIC_KEY, public_key)
         self.send_payload(connection, public_key_payload)
+
+    def generate_session_key(self):
+
+        """This key is exchanged with an RSA process, but allows for the creation of a shared symmetric key for
+        an AES implementation"""
+
+        session_key = get_random_bytes(16)
+        return session_key
 
     def generate_payload(self, pcode, data: str, public_key = '-1') -> list:
 
@@ -90,7 +112,7 @@ class Com:
         encoded_data = encrypted_data.encode(self.data_format)
         return encoded_data
 
-    def unpad_data(self, data, private_key):
+    def unpad_data(self, data):
         trailer = data[-5:-3]
         if trailer[0] == '0':
             trailer = data[-1:]
@@ -98,24 +120,54 @@ class Com:
         unpadded_data = data[3:pad_start]
         return unpadded_data 
 
-    def encrypt_data(self, data, public_key = '-1'):
+    def send_session_key(self, connection, public_key, session_key):
+        enc_session_key = encrypt_session_key(session_key, public_key)
+        enc_session_key_payload = self.generate_payload(PCode.SESSION_KEY, enc_session_key)
+        self.send_payload(connection, enc_session_key_payload)
+
+    def encrypt_session_key(self, session_key, public_key = "-1"):
+        enc_session_key = ''
+        if public_key != str:
+            public_key = RSA.import_key(public_key)  # The recipients public key
+            cipher_rsa = PKCS1_OAEP.new(public_key)  # create RSA cipher
+            enc_session_key = cipher_rsa.encrypt(session_key)  # encrypt random key with public_key
+        return enc_session_key
+
+    def decrypt_session_key(self, enc_session_key, private_key = "-1"):
+        session_key = ''
+        if private_key != str:
+            private_key = RSA.import_key(private_key)
+            cipher_rsa = PKCS1.OAEP.new(private_key)
+            session_key = cipher_rsa.decrypt(enc_session_key)
+        return session_key
+
+    def encrypt_data(self, data, public_key = -1):
         encrypted_data = ''
-        if public_key == -1:  # Public keys are passed in as str and converted into an RSAKey Object
+        if type(public_key) == str:  
             encrypted_data = data
         else:
-            #key = RSA.generate(2048)
-            public_key = importKey(public_key)
-            cipher = PKCS1_OAEP.new(public_key)
-            encrypted_data = cipher.encrypt(data)
+            cipher_aes = AES.new(session_key, AES.MODE_EAX)
+            
+            #public_key = RSA.import_key(public_key)
+            #session_key = get_random_bytes(16)
+            #cipher_rsa = PKCS1_OAEP.new(public_key)
+            #enc_session_key = cipher_rsa.encrypt(session_key)
+            #cipher_aes = AES.new(session_key, AES.MODE_EAX)
+            #encrypted_data, tag = cipher_aes.encrypt_and_digest(data)
         return encrypted_data
 
     def decrypt_data(self, encrypted_data, private_key = -1):
         decrypted_data = ''
-        if type(private_key) == int:  # An instantiated Private key is already an RSAKey object and never converted to str
+        if type(private_key) == str: 
             decrypted_data = encrypted_data
         else:
-            cipher = PKCS1_OAEP.new(private_key)
+            private_key = RSA.import_key(private_key)
+            enc_session_key = private_key.size_in_bytes()
+            cipher_rsa = PKCS1_OAEP.new(private_key)
+            session_key = cipher_rsa.decrypt(enc_session_key)
+            cipher_aes = AES.new(session_key, AES.MODE_EAX)
             decrypted_data = cipher.decrypt(encrypted_data)
+            # https://pycryptodome.readthedocs.io/en/latest/src/examples.html
         return decrypted_data
 
     def send_payload(self, connection, payload):
@@ -123,7 +175,12 @@ class Com:
             connection.send(section)
 
     def parse_payload(self, decrypted_data) -> tuple:
+
+        """Takes decrypted or decoded data only"""
+
         parsed_data = ''
+        start_pcode = ''
+        end_pcode = ''
         if len(decrypted_data):
             end_pcode = int(decrypted_data[-3:])
             start_pcode = int(decrypted_data[0:3])
@@ -134,4 +191,5 @@ class Com:
             else:
                 print("Message is corrupt - Can't read trailer")
         return (parsed_data, start_pcode, end_pcode)
+
 

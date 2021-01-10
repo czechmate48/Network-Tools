@@ -1,6 +1,6 @@
-# I believe the Public key needs to be converted into another format which is why you are getting the error when trying to 
-# exchange data between the server and client. Take a look at the type of format the public key is in once it is received
-# I think you need to convert a str into a number
+# Need to figure out the best way to exchange the session information. It may be that both the client
+# and server need to be constantly listening for data, and then 'fill in' the session information as it
+# arrives rather than trying to orchestrate a step by step process. The new PCodes may not be necessary. 
 
 import socket
 import threading
@@ -80,10 +80,10 @@ class Server(Com):
             self.print_to_terminal(listening_error)
         while self.listening:
             com_channel, client_address = self.socket.accept()
-            print("received connection from %r" % str(client_address))
             if com_channel and client_address:
                 connection_profile = Connection_Profile(com_channel, client_address)  # Public key set later
                 self.connection_profiles[connection_profile.id] = connection_profile
+                self.establish_session(connection_profile)
                 self.handle_connection(connection_profile)
 
     def stop(self):
@@ -100,6 +100,38 @@ class Server(Com):
         receive_thread.start()
         send_thread = threading.Thread(target=self.send_data, args=(connection_profile,))
         send_thread.start()
+
+    def establish_session(self, connection_profile):
+        com_channel = connection_profile.com_channel
+        client_address = connection_profile.client_address
+        print("received connection from %r" % str(client_address))
+        self.send_public_key(com_channel, self.key_pair['public'])  # Send server public key to client
+        self.receive_client_public_key(connection_profile) 
+        client_public_key = self.connection_profiles[connection_profile.id].public_key
+        session_key = self.generate_session_key()
+        self.connection_profiles[connection_profile.id].session_key = session_key
+        self.send_session_key(com_channel, client_public_key, session_key)
+
+    def receive_client_public_key(self, connection_profile):
+        connection_profile = self.connection_profiles[connection_profile.id]
+        key_not_received = connection_profile.public_key == "-1"
+        message = ''
+        while key_not_received:
+            message = self.receive_unencrypted_data(message, connection_profile)
+            key_not_received = self.connection_profiles[connection_profile.id].public_key == "-1"
+
+    def receive_unencrypted_data(self, message, connection_profile: tuple):
+        com_channel = connection_profile.com_channel
+        client_address = connection_profile.client_address
+        raw_data = com_channel.recv(self.data_payload_length)
+        decoded_data = raw_data.decode(self.data_format)
+        print(decoded_data)
+        parsed_data = self.parse_payload(decoded_data)
+        message += parsed_data[0]
+        #print(parsed_data[2])
+        if parsed_data[2] == PCode.END_TRANSMISSION:
+            self.handle_message(message, parsed_datai[1], connection_profile)
+        return message
 
     def receive_data(self, connection_profile: tuple):
         com_channel = connection_profile.com_channel
@@ -124,14 +156,11 @@ class Server(Com):
 
     def send_data(self, connection_profile: tuple):
 
-        """Send public key and connection message on connection"""
-        
+        """Send public key, session key, and connection message on connection"""
+        session_active = connection_profile.session_active
         com_channel = connection_profile.com_channel
         client_address = connection_profile.client_address
-        self.send_public_key(com_channel, self.key_pair['public'])  # Send server public key to client
-        payload = self.generate_payload(PCode.INFORMATION, Server.CONNECTION_MESSAGE)
-        self.send_payload(com_channel, payload)
-        while True:
+        while session_active:
             client_public_key = self.connection_profiles[connection_profile.id].public_key
             data = input()
             payload = self.generate_payload(PCode.DATA, data, client_public_key)
@@ -145,13 +174,16 @@ class Server(Com):
             print(message)
 
 
+
 class Connection_Profile():
 
-    def __init__(self, com_channel, client_address, public_key=-1):
-        self.com_channel = com_channel
-        self.client_address = client_address
-        self.public_key = public_key
-        self.id = id(self)
+    def __init__(self, com_channel, client_address, session_key="-1", public_key="-1"):
+        self.session_active = False  # Used to indicate a session is ready to start exchanging data
+        self.com_channel = com_channel  # Won't update throughout object life
+        self.client_address = client_address  # Won't update throughout object life
+        self.public_key = public_key  # Will update
+        self.session_key = session_key  # Will update
+        self.id = id(self)  # Won't update
 
     def as_tuple(self):  # Recieves a Connection_Profile object
         return (self.com_channel, self.client_address, self.public_key)
