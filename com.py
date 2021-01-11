@@ -25,6 +25,7 @@ class PCode:
     PERMISSION_TO_TRANSMIT_DENIED = "permission to transmit denied"
     READY_FOR_NEXT_TRANSMISSION = "next transmission"
     WAIT = "wait"
+    SESSION_KEY_RECEIVED = "session key received"
 
 class Com:
 

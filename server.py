@@ -1,9 +1,9 @@
-# Need to figure out the best way to exchange the session information. It may be that both the client
-# and server need to be constantly listening for data, and then 'fill in' the session information as it
-# arrives rather than trying to orchestrate a step by step process. The new PCodes may not be necessary. 
+#  Session is being established by utilizing time.sleep() to ensure information is exchanged in the correct
+#  order. Server side should be set up correctly, now just need to set up client side. 
 
 import socket
 import threading
+import time
 from com import Com
 from com import PCode
 
@@ -84,7 +84,10 @@ class Server(Com):
                 connection_profile = Connection_Profile(com_channel, client_address)  # Public key set later
                 self.connection_profiles[connection_profile.id] = connection_profile
                 self.establish_session(connection_profile)
-                self.handle_connection(connection_profile)
+                receive_thread = threading.Thread(target=self.receive_data, args=(connection_profile,))
+                receive_thread.start()
+                send_thread = threading.Thread(target=self.send_data, args=(connection_profile,))
+                send_thread.start()
 
     def stop(self):
 
@@ -95,63 +98,61 @@ class Server(Com):
         listening_stopped = LISTENING_STOPPED_MESSAGE.format(ip=str(ip_address), port=str(self.port))
         self.print_to_terminal(listening_stopped)
 
-    def handle_connection(self, connection_profile):
-        receive_thread = threading.Thread(target=self.receive_data, args=(connection_profile,))
-        receive_thread.start()
-        send_thread = threading.Thread(target=self.send_data, args=(connection_profile,))
-        send_thread.start()
-
     def establish_session(self, connection_profile):
         com_channel = connection_profile.com_channel
         client_address = connection_profile.client_address
         print("received connection from %r" % str(client_address))
-        self.send_public_key(com_channel, self.key_pair['public'])  # Send server public key to client
-        self.receive_client_public_key(connection_profile) 
-        client_public_key = self.connection_profiles[connection_profile.id].public_key
+        receive_thread = threading.Thread(target=self.receive_data, args=(connection_profile, False,))
+        receive_thread.start()
+        self.transmit_server_public_key(connection_profile) 
+        self.receive_client_public_key()
+        self.transmit_session_key()
+        receive_thread.stop()
+
+    def transmit_server_public_key(self, connection_profile):
+        while self.connection_profiles[connection_profile.id].received_server_public_key == False:
+            self.send_public_key(com_channel, self.key_pair['public'])
+            time.sleep(.1)
+
+    def receive_client_public_key(self):
+        while self.connection_profiles[connection_profile.id].public_key == "-1":
+            time.sleep(.1)
+
+    def transmit_session_key(self, connection_profile):
+        cp = self.connection_profiles[connection_profile.id]
         session_key = self.generate_session_key()
-        self.connection_profiles[connection_profile.id].session_key = session_key
-        self.send_session_key(com_channel, client_public_key, session_key)
+        cp.session_key = session_key
+        while self.connection_profiles[connection_profile.id].session_active == False:
+            self.send_session_key(cp.com_channel, cp.public_key, cp.session_key)
+            time.sleep(.1)
 
-    def receive_client_public_key(self, connection_profile):
-        connection_profile = self.connection_profiles[connection_profile.id]
-        key_not_received = connection_profile.public_key == "-1"
-        message = ''
-        while key_not_received:
-            message = self.receive_unencrypted_data(message, connection_profile)
-            key_not_received = self.connection_profiles[connection_profile.id].public_key == "-1"
-
-    def receive_unencrypted_data(self, message, connection_profile: tuple):
-        com_channel = connection_profile.com_channel
-        client_address = connection_profile.client_address
-        raw_data = com_channel.recv(self.data_payload_length)
-        decoded_data = raw_data.decode(self.data_format)
-        print(decoded_data)
-        parsed_data = self.parse_payload(decoded_data)
-        message += parsed_data[0]
-        #print(parsed_data[2])
-        if parsed_data[2] == PCode.END_TRANSMISSION:
-            self.handle_message(message, parsed_datai[1], connection_profile)
-        return message
-
-    def receive_data(self, connection_profile: tuple):
+    def receive_data(self, connection_profile: tuple, decrypt_message=True):
         com_channel = connection_profile.com_channel
         client_address = connection_profile.client_address
         message = ''
         while True:
             raw_data = com_channel.recv(self.data_payload_length)
             decoded_data = raw_data.decode(self.data_format)
-            decrypted_data = self.decrypt_data(decoded_data, self.key_pair['private'])
-            parsed_data = self.parse_payload(decrypted_data)  # Returns a tuple - (parsed data, start_pcode, end_pcode)
-            message += parsed_data[0]
+            if decrypt_message: 
+                decrypted_data = self.decrypt_data(decoded_data, self.key_pay['private'])
+                parsed_data = self.parse_payload(decrypted)
+                message += parsed_data[0]
+            else:
+                parsed_data = self.parse_payload(decoded_data)
+                message += parsed_data[0]
             if parsed_data[2] == PCode.END_TRANSMISSION:
                 self.handle_message(message, parsed_data[1], connection_profile)
                 message = ''
-        com_channel.close()
 
     def handle_message(self, message, start_pcode, connection_profile: tuple):
+        cp = self.connection_profiles[connection_profile.id]
         ip_tag = "[" + str(connection_profile.client_address) + "] " 
         if start_pcode == PCode.PUBLIC_KEY:
-            self.connection_profiles[connection_profile.id].public_key = message
+            cp.public_key = message
+        elif start_pcode == PCode.PUBLIC_KEY_RECEIVED:
+            cp.received_server_public_key = True
+        elif start_pcode == PCode.SESSION_KEY_RECEIVED:
+            cp.session_active = True
         print(ip_tag + message)
 
     def send_data(self, connection_profile: tuple):
@@ -179,6 +180,7 @@ class Connection_Profile():
 
     def __init__(self, com_channel, client_address, session_key="-1", public_key="-1"):
         self.session_active = False  # Used to indicate a session is ready to start exchanging data
+        self.received_server_public_key = False
         self.com_channel = com_channel  # Won't update throughout object life
         self.client_address = client_address  # Won't update throughout object life
         self.public_key = public_key  # Will update
