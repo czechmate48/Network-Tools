@@ -1,4 +1,5 @@
-#  Session key isn't decoding quite right using utf-8 or utf-16. Not sure what the issue is 
+#  Session is being established by utilizing time.sleep() to ensure information is exchanged in the correct
+#  order. Server side should be set up correctly, now just need to set up client side. 
 
 import socket
 import threading
@@ -98,29 +99,26 @@ class Server(Com):
         self.print_to_terminal(listening_stopped)
 
     def establish_session(self, connection_profile):
-        print("received connection from %r" % str(connection_profile.client_address))
+        com_channel = connection_profile.com_channel
+        client_address = connection_profile.client_address
+        print("received connection from %r" % str(client_address))
         receive_thread = threading.Thread(target=self.receive_data, args=(connection_profile, False,))
         receive_thread.start()
         self.transmit_server_public_key(connection_profile) 
-        self.receive_client_public_key(connection_profile)
-        self.transmit_session_key(connection_profile)
+        self.receive_client_public_key()
+        self.transmit_session_key()
         receive_thread.stop()
 
     def transmit_server_public_key(self, connection_profile):
-        print("Transmitting server public key")
         while self.connection_profiles[connection_profile.id].received_server_public_key == False:
-            self.send_public_key(connection_profile.com_channel, self.key_pair['public'])
+            self.send_public_key(com_channel, self.key_pair['public'])
             time.sleep(.1)
 
-    def receive_client_public_key(self, connection_profile):
-        print("Waiting for client public key")
+    def receive_client_public_key(self):
         while self.connection_profiles[connection_profile.id].public_key == "-1":
             time.sleep(.1)
-        transmission_successful_payload = self.generate_payload(PCode.PUBLIC_KEY_RECEIVED, ' ')
-        self.send_payload(connection_profile.com_channel, transmission_successful_payload)
 
     def transmit_session_key(self, connection_profile):
-        print("Transmitting session key")
         cp = self.connection_profiles[connection_profile.id]
         session_key = self.generate_session_key()
         cp.session_key = session_key
@@ -137,7 +135,7 @@ class Server(Com):
             decoded_data = raw_data.decode(self.data_format)
             if decrypt_message: 
                 decrypted_data = self.decrypt_data(decoded_data, self.key_pay['private'])
-                parsed_data = self.parse_payload(decrypted_data)
+                parsed_data = self.parse_payload(decrypted)
                 message += parsed_data[0]
             else:
                 parsed_data = self.parse_payload(decoded_data)
@@ -149,16 +147,13 @@ class Server(Com):
     def handle_message(self, message, start_pcode, connection_profile: tuple):
         cp = self.connection_profiles[connection_profile.id]
         ip_tag = "[" + str(connection_profile.client_address) + "] " 
-        if start_pcode == PCode.PUBLIC_KEY and cp.public_key == "-1":  # Client may send more than one time
-            print("Server public key successfully transmitted")
+        if start_pcode == PCode.PUBLIC_KEY:
             cp.public_key = message
-        elif start_pcode == PCode.PUBLIC_KEY_RECEIVED and cp.received_server_public_key == False:
-            print("Client public key successfully received")
+        elif start_pcode == PCode.PUBLIC_KEY_RECEIVED:
             cp.received_server_public_key = True
-        elif start_pcode == PCode.SESSION_KEY_RECEIVED and cp.session_active == False:
-            print("Session key successfully transmitted")
+        elif start_pcode == PCode.SESSION_KEY_RECEIVED:
             cp.session_active = True
-        #print(ip_tag + message)
+        print(ip_tag + message)
 
     def send_data(self, connection_profile: tuple):
 
